@@ -4,9 +4,10 @@
    1.  utils / rAF ticker
    2.  text splitting + reveal observers
    3.  scroll engine  (section cross-fade, parallax, nav theme)
-   4.  hero  ·  the pin lasts exactly as long as the video plays
+   4.  hero  ·  pinned, and the clip scrubs frame-by-frame with the scroll
    5.  nav + fullscreen menu + back-to-top
    6.  word cycler  (ESKÜVŐ? / RANDI? / VAGY MERT VAN STÍLUSOD.)
+   6b. before / after rotation
    7.  booking widget (calendar + time slots)
    ===================================================================== */
 (function () {
@@ -126,16 +127,24 @@
   }
 
   /* ---------------------------------------------------------------- 3 */
-  /*  HERO — the pin lasts exactly as long as the video plays.
-      Scrolling is what advances the clip: the further you are through the
-      pinned block, the further the video has played. Stop scrolling and the
-      video pauses with you, so the hero never outlives its own footage.   */
+  /*  HERO — the pin lasts exactly as long as the clip.
+      Scrolling is what advances the footage: the further you are through
+      the pinned block, the further the clip has run. Stop scrolling and it
+      stops with you, so the hero never outlives its own footage.
+
+      The clip is never played — it is scrubbed, frame by frame. That is
+      only affordable because the file now carries a keyframe every fifth
+      frame, so a seek in either direction costs a handful of decodes.
+      Playing it is what used to break: forward it raced to catch up and
+      overshot on a fling, backward it could only jump, which read as a
+      stutter.                                                           */
 
   var heroPin = $('#heroPin');
   var hero    = $('#hero');
   var video   = $('#heroVideo');
 
   var DUR = 4;                 /* replaced by the real duration    */
+  var FPS = 30;                /* the clip's frame rate            */
   var PIN = 0;                 /* pinned scroll distance, in px    */
   var vReady = false;
   var pRaw = 0, pSmooth = 0;
@@ -147,43 +156,57 @@
     heroPin.style.setProperty('--pin', PIN + 'px');
   }
 
+  /* A seek only lands when the decoder is free. Asking for the next one
+     while the last is still in flight is what shreds a fast scroll into
+     jerks — so a request made mid-seek is parked here and replayed on the
+     way out, and only the newest one ever survives. */
+  var seekWant = -1;
+
+  function seekTo(t) {
+    try { video.currentTime = t; } catch (e) {}
+  }
+
+  function driveVideo(p) {
+    if (!video || !vReady || REDUCED) return;
+
+    /* land on a frame boundary — two requests inside the same frame decode
+       the same picture twice and buy nothing */
+    var t = clamp(Math.round(p * DUR * FPS) / FPS, 0, DUR - 1 / FPS);
+
+    if (Math.abs(t - video.currentTime) < 0.5 / FPS) { seekWant = -1; return; }
+    if (video.seeking) { seekWant = t; return; }
+
+    seekWant = -1;
+    seekTo(t);
+  }
+
   if (video) {
-    video.addEventListener('loadedmetadata', function () {
+    var onMeta = function () {
       if (isFinite(video.duration) && video.duration > 0.25) DUR = video.duration;
       sizePin();
-      try { video.currentTime = 0.03; } catch (e) {}
-    });
+      seekTo(1 / FPS);        /* paint a real frame instead of an empty box */
+    };
+    video.addEventListener('loadedmetadata', onMeta);
     video.addEventListener('loadeddata', function () { vReady = true; });
-    video.addEventListener('error', function () { vReady = false; });
-    /* nudge decoding so frame 1 is painted straight away */
-    var kick = video.play();
-    if (kick && kick.then) kick.then(function () { video.pause(); }).catch(function () {});
+    video.addEventListener('error',      function () { vReady = false; });
+
+    /* a cached or local file can be ready before this script even runs, and
+       then neither event is ever coming — so catch up on what we missed */
+    if (video.readyState >= 1) onMeta();
+    if (video.readyState >= 2) vReady = true;
+
+    video.addEventListener('seeked', function () {
+      if (seekWant < 0) return;
+      var t = seekWant;
+      seekWant = -1;
+      seekTo(t);
+    });
+
+    /* a scrubber, never a player — if anything ever starts it, stop it */
+    video.addEventListener('play', function () { video.pause(); });
   }
   sizePin();
   onResize(sizePin);
-
-  var lastMove = 0;              /* when the page last actually moved */
-  var IDLE = 250;                /* ms of stillness before the clip stops */
-
-  function driveVideo(p) {
-    if (!vReady || REDUCED) return;
-    var target = p * DUR;
-    var delta  = target - video.currentTime;
-    var moving = (Date.now() - lastMove) < IDLE;
-
-    if (delta > 1.15 || delta < -0.5) {
-      /* scrolled a long way — jump there and wait */
-      try { video.currentTime = target; } catch (e) {}
-      if (!video.paused) video.pause();
-    } else if (delta > 0.02 && moving) {
-      /* the scroll is ahead of the footage: play, catching up gently */
-      if (video.paused) { var pr = video.play(); if (pr && pr.catch) pr.catch(function () {}); }
-      video.playbackRate = clamp(0.65 + delta * 2.8, 0.65, 3.4);
-    } else if (!video.paused) {
-      /* standing still: the clip stands still too */
-      video.pause();
-    }
-  }
 
   /* ------------------------------------------- scroll-driven elements */
   var fadeEls   = $$('[data-fade]');
@@ -204,8 +227,12 @@
   function tick() {
     var y = window.pageYOffset || root.scrollTop || 0;
 
-    if (y === lastY) { if (extra <= 0) return; extra--; }
-    else { extra = 40; lastMove = Date.now(); }
+    if (y === lastY) {
+      /* keep ticking a little past the last movement, so the smoothing —
+         and the frame the clip is easing toward — actually arrives */
+      if (extra <= 0 && pSmooth === pRaw) return;
+      if (extra > 0) extra--;
+    } else { extra = 40; }
     lastY = y;
 
     /* ---------- measure ---------- */
@@ -242,7 +269,9 @@
       hero.style.opacity = (1 - heroOver).toFixed(3);
       hero.style.visibility = heroOver >= 1 ? 'hidden' : '';
 
-      driveVideo(pRaw);
+      /* the smoothed value, not the raw one: a fling then becomes a fast
+         ramp the decoder can follow instead of a jump it has to chase */
+      driveVideo(pSmooth);
     }
 
     /* ---------- section cross-fade ---------- */
@@ -476,6 +505,68 @@
     }
     document.addEventListener('visibilitychange', function () {
       document.hidden ? pause() : play();
+    });
+  })();
+
+  /* --------------------------------------------------------------- 6b */
+  /*  before / after — three results through the one frame              */
+  (function () {
+    var ba = $('[data-ba]');
+    if (!ba) return;
+
+    var frames = $$('.ba__frame', ba);
+    var arrow  = $('.ba__arrow', ba);
+    if (frames.length < 2) return;
+
+    var shots = frames.map(function (f) { return $$('img', f); });
+    var count = Math.min.apply(null, shots.map(function (s) { return s.length; }));
+    if (count < 2) return;
+
+    var HOLD  = 4600;   /* ms a pair stays up            */
+    var TRAIL = 220;    /* the "after" side lands late, so the swap still
+                           reads left to right, the way the arrow points */
+    var idx = 0, timer = null, trail = null;
+
+    function show(n) {
+      shots.forEach(function (imgs, col) {
+        var swap = function () {
+          imgs.forEach(function (img, i) { img.classList.toggle('is-on', i === n); });
+        };
+        if (col === 0 || REDUCED) swap();
+        else trail = setTimeout(swap, TRAIL);
+      });
+
+      if (arrow && !REDUCED) {
+        arrow.classList.remove('is-pulse');
+        void arrow.offsetWidth;          /* restart the animation */
+        arrow.classList.add('is-pulse');
+      }
+    }
+
+    function next() { idx = (idx + 1) % count; show(idx); }
+
+    function play() {
+      if (timer || REDUCED) return;
+      timer = setInterval(next, HOLD);
+    }
+    function stop() {
+      clearInterval(timer); clearTimeout(trail);
+      timer = null; trail = null;
+    }
+
+    /* leaving the section winds it back, so coming to it again always
+       starts from the first pair rather than mid-rotation */
+    function rewind() { stop(); idx = 0; show(0); }
+
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (es) {
+        es.forEach(function (e) { e.isIntersecting ? play() : rewind(); });
+      }, { threshold: 0 }).observe(ba);
+    } else {
+      play();
+    }
+    document.addEventListener('visibilitychange', function () {
+      document.hidden ? stop() : play();
     });
   })();
 

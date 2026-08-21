@@ -164,7 +164,10 @@ body:not(.is-loading) .loader{opacity:0;visibility:hidden;pointer-events:none}
 
 .nav__search{
   display:inline-flex;align-items:center;gap:.5em;
-  margin-inline:auto;
+  /* dead centre of the viewport, out of the flex flow so the logo
+     and the links can never nudge it off the middle */
+  position:absolute;left:50%;
+  transform:translateX(-50%);
   font-family:var(--ff-d);font-weight:500;
   font-size:clamp(11px,.83vw,16px);
   color:var(--ink);
@@ -177,7 +180,7 @@ body:not(.is-loading) .loader{opacity:0;visibility:hidden;pointer-events:none}
 .nav.is-dark .nav__search{color:var(--cream)}
 .nav.is-dark .nav__search img{filter:invert(1)}
 
-.nav__links{display:flex;align-items:center;gap:clamp(14px,2.1vw,42px)}
+.nav__links{display:flex;align-items:center;gap:clamp(14px,2.1vw,42px);margin-left:auto}
 .nav__links a{
   font-family:var(--ff-d);font-weight:700;
   font-size:clamp(10px,.83vw,16px);
@@ -281,10 +284,10 @@ body:not(.is-loading) .loader{opacity:0;visibility:hidden;pointer-events:none}
 }
 .hero{
   --p:0;
-  /* the clip is 1294x1080 of picture inside a 1920x1080 frame; a box a
-     little narrower than that ratio crops the black pillar-box away. */
+  /* the pillar-box is gone from the file itself now, so the box simply
+     takes the clip's own 1292x1080 shape and nothing is cropped away. */
   --h0:min(74svh,780px);
-  --w0:min(calc(var(--h0) * 1.16),96vw);
+  --w0:min(calc(var(--h0) * 1.196),96vw);
   position:sticky;top:0;
   height:100svh;
   overflow:hidden;
@@ -433,6 +436,7 @@ html.js [data-stagger].is-in > *{opacity:1;transform:none}
 }
 .ba__item{display:flex;flex-direction:column;align-items:center}
 .ba__frame{
+  position:relative;                    /* the three pairs stack in here */
   height:clamp(180px,46vh,532px);
   width:auto;
   aspect-ratio:405/570;
@@ -442,13 +446,18 @@ html.js [data-stagger].is-in > *{opacity:1;transform:none}
   box-shadow:0 30px 60px -34px rgba(0,0,0,.9);
   transition:transform .8s var(--e-out),box-shadow .8s var(--e-out);
 }
+/* one frame, three results — they cross-fade in place, and the incoming
+   one drifts a hair closer so the swap reads as a settle, not a cut */
 .ba__frame img{
+  position:absolute;inset:0;
   width:100%;height:100%;object-fit:cover;
-  transform:scale(1.02);
-  transition:transform 1.2s var(--e-out),filter 1.2s var(--e-out);
+  opacity:0;
+  transform:scale(1.065);
+  transition:opacity .95s var(--e-out),transform 1.5s var(--e-out);
 }
+.ba__frame img.is-on{opacity:1;transform:scale(1.02)}
 .ba__item:hover .ba__frame{transform:translateY(-8px) scale(1.02);box-shadow:0 44px 80px -32px rgba(0,0,0,1)}
-.ba__item:hover .ba__frame img{transform:scale(1.08)}
+.ba__item:hover .ba__frame img.is-on{transform:scale(1.08)}
 .ba__item figcaption{
   margin-top:clamp(8px,1vh,20px);
   font-size:clamp(12px,1.35vw,26px);
@@ -465,6 +474,14 @@ html.js [data-stagger].is-in > *{opacity:1;transform:none}
 .ba__arrow-head{opacity:0;transform:translateX(-10px);transform-origin:center;transition:opacity .5s ease 1.1s,transform .7s var(--e-out) 1.1s}
 [data-stagger].is-in .ba__arrow-line{stroke-dashoffset:0}
 [data-stagger].is-in .ba__arrow-head{opacity:1;transform:none}
+/* every time the pair swaps the arrow ticks over with it, so the eye is
+   pulled left-to-right through the new before → after */
+.ba__arrow.is-pulse svg{animation:baPulse 1s var(--e-out)}
+@keyframes baPulse{
+  0%{transform:translateX(-9px);opacity:.35}
+  55%{transform:translateX(4px);opacity:1}
+  100%{transform:none;opacity:1}
+}
 
 /* --------------------------- WORD CYCLER --------------------------- */
 .cycler{
@@ -919,7 +936,7 @@ html.js .polas.is-in > .pola{opacity:1;transform:rotate(var(--rot)) translateY(v
 @media (max-width:900px){
   :root{--wrap:min(1680px,90vw)}
   .nav__links{display:none}
-  .nav__search{margin-inline:0 auto;padding-left:clamp(8px,2vw,24px)}
+  .burger{margin-left:auto}   /* with the links gone, nothing else pushes it right */
   .polas{flex-wrap:wrap;justify-content:center;gap:clamp(26px,7vw,60px) clamp(10px,3vw,26px)}
   .pola{width:min(46%,300px)}
   .pola--c{width:min(60%,340px)}

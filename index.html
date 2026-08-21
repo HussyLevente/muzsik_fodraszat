@@ -84,7 +84,7 @@ window.__muzsikFallback = setTimeout(function () {
     <div class="hero__stage">
       <div class="hero__media" id="heroMedia">
         <video id="heroVideo" class="hero__video"
-               src="assets/vids/homepage_scroller.mp4"
+               src="assets/vids/homepage_scroller_scrub.mp4"
                muted playsinline preload="auto"
                disablepictureinpicture
                aria-label="Muzsik Fodrászat bemutató videó"></video>
@@ -111,9 +111,13 @@ window.__muzsikFallback = setTimeout(function () {
       <p class="sec__sub" data-split>mi megadjuk neked azt amire mindig is vágytál.</p>
     </header>
 
-    <div class="ba" data-stagger>
+    <div class="ba" data-stagger data-ba>
       <figure class="ba__item">
-        <div class="ba__frame"><img src="assets/imgs/muzsik_homepage_comp_before.jpg" alt="Hajkorona a kezelés előtt" loading="lazy" decoding="async"></div>
+        <div class="ba__frame">
+          <img class="is-on" src="assets/imgs/muzsik_homepage_comp_before.jpg" width="1920" height="2748" alt="Hajkorona a kezelés előtt" loading="lazy" decoding="async">
+          <img src="assets/imgs/muzsik_homepage_comp_before2.jpg" width="1000" height="1431" alt="" loading="lazy" decoding="async">
+          <img src="assets/imgs/muzsik_homepage_comp_before3.jpg" width="1000" height="1431" alt="" loading="lazy" decoding="async">
+        </div>
         <figcaption>előtte</figcaption>
       </figure>
 
@@ -125,7 +129,11 @@ window.__muzsikFallback = setTimeout(function () {
       </div>
 
       <figure class="ba__item">
-        <div class="ba__frame"><img src="assets/imgs/muzsik_homepage_comp_after.jpg" alt="Hajkorona a kezelés után" loading="lazy" decoding="async"></div>
+        <div class="ba__frame">
+          <img class="is-on" src="assets/imgs/muzsik_homepage_comp_after.jpg" width="1920" height="2748" alt="Hajkorona a kezelés után" loading="lazy" decoding="async">
+          <img src="assets/imgs/muzsik_homepage_comp_after2.jpg" width="1000" height="1431" alt="" loading="lazy" decoding="async">
+          <img src="assets/imgs/muzsik_homepage_comp_after3.jpg" width="1000" height="1431" alt="" loading="lazy" decoding="async">
+        </div>
         <figcaption>utána</figcaption>
       </figure>
     </div>
